@@ -306,7 +306,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 
 		checktime = 20;
 
-		int op = random() % totalops;
+		int op = lrand48() % totalops;
 
 		//debug_msg(3,"op = %d, i = %d, u = %d, q = %d\n",op,inserts,updates,queries);
 		if (op < inserts) {
@@ -432,7 +432,7 @@ int generate_text_value(char *buffer, int maxlen, int minlen, int cardinality) {
 			{ 1, 3, 4, 5, 4, 2, 3, 4, 3, 5, 4, 1, 5, 4, 3, 4, 5, 2, 4, 4 };
 
 	/* Generate a random test string of the appropriate length for a given set size */
-	value = random();
+	value = lrand48();
 	value = value % cardinality;
 
 	if (maxlen > minlen) {
@@ -464,7 +464,7 @@ int generate_int_value(int min, int max) {
 	long value;
 
 	if (max > min) {
-		value = random();
+		value = lrand48();
 		value = (value % (max - min)) + min;
 	} else {
 		value = min;
