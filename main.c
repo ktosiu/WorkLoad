@@ -214,6 +214,7 @@ static int fetch_test_params(MLaunchargs *launchargs, MTestparams *testparams) {
 			return -1;
 		}
 	}
+	mongoc_collection_destroy(collection);
     mongoc_cursor_destroy(cursor);
 	bson_destroy(query);
 
@@ -297,9 +298,11 @@ int save_stats(MLaunchargs *launchargs, bson_oid_t *thread_oid, MTestStats *stat
 	{
 		printf("%s\n", error.message);
 		disconnect_from_mongo(conn);
+		mongoc_collection_destroy(collection);
 		bson_destroy(&record);
 		return -1;
 	}
+	mongoc_collection_destroy(collection);
 	bson_destroy(&record);
 	disconnect_from_mongo(conn);
 	return 0;
