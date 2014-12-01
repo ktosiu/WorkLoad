@@ -93,6 +93,8 @@ int main(int argc, char **argv) {
 	MLaunchargs launchargs;
 	MTestparams testparams;
 
+	srand48(1); //Predictable behaviour
+
 	if (parse_command_line(&launchargs, argc, argv) != 0) {
 		fprintf(stderr, "Exiting with Error");
 		exit(1);
@@ -471,6 +473,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 			bson_init(&cond);
 			bson_append_document_begin(&cond, "_id",3,&child);
 			bson_append_oid(&child,"o",1,goid);
+			bson_append_utf8(&child,"t",1,"This is a string, not a small string either, it's in here to make the index larger",-1);
 			bson_append_int64(&child,"seq",3,key);
 			bson_append_document_end(&cond,&child);
 
@@ -508,6 +511,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 					bson_init(&cond);
 					bson_append_document_begin(&cond, "_id",3,&child);
 					bson_append_oid(&child,"o",1,goid);
+					bson_append_utf8(&child,"t",1,"This is a string, not a small string either, it's in here to make the index larger",-1);
 					bson_append_int64(&child,"seq",3,key);
 					bson_append_document_end(&cond,&child);
 
@@ -643,6 +647,7 @@ int generate_new_record(mongoc_client_t *conn, MTestparams *testparams,
 
 	bson_append_document_begin(newrecord, "_id",3,&child);
 	bson_append_oid(&child,"o",1,goid);
+	bson_append_utf8(&child,"t",1,"This is a string, not a small string either, it's in here to make the index larger",-1);
 	bson_append_int64(&child,"seq",3,key);
 	bson_append_document_end(newrecord,&child);
 
