@@ -384,6 +384,20 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 		return -1;
 	}
 
+	//Ensure indexes
+
+	collection = mongoc_client_get_collection(conn, DATA_DB,
+						DATA_COLLECTION);
+
+	bson_t *index1;
+	bson_t *index2;
+	index1 = BCON_NEW (  "f1", BCON_INT32(1));
+	index2 = BCON_NEW (  "f3", BCON_INT32(1));
+	mongoc_collection_create_index(collection,index1,NULL,NULL);
+	mongoc_collection_create_index(collection,index2,NULL,NULL);
+	bson_destroy(index1);
+	bson_destroy(index2);
+
 //Every so often get new test info
 	long checktime = 1; //Check every 10 seconds
 
@@ -667,10 +681,10 @@ int generate_data_fields(int numfields, int fieldlen, int pnum, bson_t *record) 
 
 		if (x % 10 < pnum / 10) {
 
-			sprintf(fname, "i%x", x);
+			sprintf(fname, "f%x", x);
 			bson_append_int32(record, fname, -1,generate_int_value(100, 100000));
 		} else {
-			sprintf(fname, "s%x", x);
+			sprintf(fname, "f%x", x);
 			generate_text_value(textbuf, fieldlen, fieldlen, 1000);
 			bson_append_utf8(record, fname,-1, textbuf,-1);
 		}
