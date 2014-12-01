@@ -7,3 +7,9 @@ cd mongo-c-driver
 ./autogen.sh
 make
 make install
+
+
+ git clone https://github.com/johnlpage/WorkLoad
+ cd Workload
+ make
+ 

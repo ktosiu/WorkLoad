@@ -9,13 +9,16 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <mongoc.h>
-
+#include <time.h>
 #include "launchargs.h"
 
 #define CFG_DB "testsrv"
 #define CFG_COLLECTION "tests"
 #define DATA_DB "testsrv"
 #define DATA_COLLECTION "data"
+#define STATS_DB "testresults"
+#define STATS_COLLECTION "results"
+
 #define SEQUENCE_DB "testsrv"
 #define SEQUENCE_COLL "data"
 #define SEQUENCE_BATCH 10000
@@ -23,8 +26,9 @@
 
 
 int total_threads = 16;
+int test_duration = 7200;
 
-
+void append_op_stats(bson_t *doc, char *opname, MOpStats *opstats);
 static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv);
 static int fetch_test_params(MLaunchargs *launchargs, MTestparams *testparams);
 int generate_new_record(mongoc_client_t *conn, MTestparams *testparams,
@@ -117,7 +121,7 @@ int main(int argc, char **argv) {
 
 int disconnect_from_mongo(mongoc_client_t *conn) {
 	mongoc_client_destroy(conn);
-	debug_msg(3, "%s", "Disconnected from MongoDB\n");
+
 	return 0;
 }
 
@@ -144,7 +148,7 @@ static int add_default_test(mongoc_client_t *conn) {
 	defaulttest =
 			BCON_NEW ( "_id", "loadtest", "numfields",BCON_INT32 (20), "fieldsize",
 					BCON_INT32 (50), "inserts", BCON_INT32(100), "updates", BCON_INT32(200), "queries", BCON_INT32(300),
-					"status", BCON_INT32(0),"pnum",BCON_INT32(20) );
+					"status", BCON_INT32(1),"pnum",BCON_INT32(20) );
 
 	debug_msg(3, "Inserting Default test record\n");
 
@@ -187,8 +191,7 @@ static int fetch_test_params(MLaunchargs *launchargs, MTestparams *testparams) {
 			query, NULL, NULL);
 
 	if (mongoc_cursor_next(cursor, &testdetail)) {
-		debug_msg(3, "Found test definition %s\n",
-				get_bson_string(testdetail, "_id"));
+
 
 		testparams->numfields = get_bson_int(testdetail, "numfields");
 		testparams->fieldsize = get_bson_int(testdetail, "fieldsize");
@@ -256,6 +259,97 @@ static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv) {
 
 	return 0;
 }
+
+
+int save_stats(MLaunchargs *launchargs, bson_oid_t *thread_oid, MTestStats *stats, int seconds,int nrecs)
+{
+	//Save the stats to the server
+	mongoc_client_t *conn;
+	mongoc_cursor_t *cursor;
+	mongoc_collection_t *collection;
+	bson_t record;
+	bson_error_t error;
+
+	if (connect_to_mongo(launchargs->uri, &conn) != 0) {
+		fprintf(stderr,
+				"Unable to connect to test configuration server %s\n",
+				launchargs->uri);
+		return -1;
+	}
+
+	bson_init(&record);
+	bson_t child;
+	bson_t time_array;
+	bson_append_document_begin(&record, "_id",-1,&child);
+	bson_append_utf8(&child,"testid",-1,launchargs->testid,-1);
+	bson_append_oid(&child,"clientid",-1,thread_oid);
+	bson_append_int32(&child,"seconds",-1,seconds);
+	bson_append_document_end(&record,&child);
+	bson_append_int64(&record,"nrecs",-1,nrecs);
+	append_op_stats(&record,"insert",&stats->inserts);
+	append_op_stats(&record,"updates",&stats->updates);
+	append_op_stats(&record,"queries",&stats->queries);
+
+
+	collection = mongoc_client_get_collection(conn, STATS_DB,
+						STATS_COLLECTION);
+	if(! mongoc_collection_insert(collection,MONGOC_INSERT_NONE,&record,NULL,&error))
+	{
+		printf("%s\n", error.message);
+		disconnect_from_mongo(conn);
+		bson_destroy(&record);
+		return -1;
+	}
+	bson_destroy(&record);
+	disconnect_from_mongo(conn);
+	return 0;
+}
+
+void append_op_stats(bson_t *doc, char *opname, MOpStats *opstats) {
+	bson_t child;
+	bson_t time_array;
+
+	bson_append_document_begin(doc, opname, -1, &child);
+
+	bson_append_int32(&child, "total_ops", -1, opstats->total_ops);
+	bson_append_int32(&child, "total_time", -1, opstats->total_time);
+	bson_append_int32(&child, "longest_time", -1, opstats->longest_time);
+	bson_append_int32(&child, "long_ops", -1, opstats->long_ops);
+	//Add the array of times
+	bson_append_array_begin(&child, "times", -1, &time_array);
+	for (int t = 0; t < 100; t++) {
+		char sbuf[16];
+		snprintf(sbuf, 16, "%d", t);
+		bson_append_int32(&time_array, sbuf, -1, opstats->time_profile[t]);
+	}
+	bson_append_array_end(&child, &time_array);
+
+	bson_append_document_end(doc, &child);
+}
+
+void log_stats(struct timeval *before_time, struct timeval *after_time,MOpStats *opstats)
+{
+	unsigned long before_millis;
+	unsigned long after_millis;
+	unsigned long taken;
+
+	before_millis = (before_time->tv_sec * 1000) + (before_time->tv_usec  / 1000);
+	after_millis = (after_time->tv_sec * 1000) + (after_time->tv_usec  / 1000);
+
+	taken =  after_millis - before_millis;
+	opstats->total_ops++;
+	opstats->total_time = opstats->total_time + taken;
+	if(taken > opstats->longest_time) opstats->longest_time = taken;
+	if(taken > 1000 )
+	{
+		opstats->long_ops++;
+	} else {
+		int batch = taken/10;
+		opstats->time_profile[batch]++;
+	}
+}
+
+
 //This is a single thread
 //It needs to add,update and query
 //And every so often check for further instructions
@@ -266,6 +360,17 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 	mongoc_collection_t *collection;
 	time_t lastcheck = 0;
 	bson_error_t error;
+	MTestStats stats;
+	struct timeval before_time;
+	struct timeval  after_time;
+	static bson_oid_t thread_oid;
+	time_t start_time;
+	bson_oid_init(&thread_oid,NULL);
+
+
+	start_time = time(NULL);
+
+	memset(&stats,0,sizeof(MTestStats));
 
 	if (connect_to_mongo(launchargs->uri, &conn) != 0) {
 		fprintf(stderr,
@@ -277,7 +382,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 //Every so often get new test info
 	long checktime = 1; //Check every 10 seconds
 
-	while (1) {
+	while (time(NULL) - start_time < test_duration) {
 		int inserts = testparams->inserts;
 		int updates = testparams->updates;
 		int queries = testparams->queries;
@@ -294,6 +399,18 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 				exit(1);
 			}
 			//Read test spec again
+
+			//Save out current stats to the server
+			long nrecs;
+			collection = mongoc_client_get_collection(conn, DATA_DB,
+								DATA_COLLECTION);
+			bson_t query;
+			bson_init(&query);
+
+			nrecs = mongoc_collection_count(collection,MONGOC_QUERY_NONE,&query,0,0,NULL,NULL);
+
+			save_stats(launchargs,&thread_oid,&stats,time(NULL)-start_time,nrecs);
+			bson_destroy(&query);
 			lastcheck = nowtime;
 		}
 
@@ -310,7 +427,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 			continue;
 		}
 
-		checktime = 20;
+		checktime = 60;
 
 		int op = lrand48() % totalops;
 
@@ -322,7 +439,10 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 			collection = mongoc_client_get_collection(conn, DATA_DB,
 					DATA_COLLECTION);
 
+			gettimeofday(&before_time,NULL);
 			int rval = mongoc_collection_insert(collection, MONGOC_INSERT_NONE, &newrecord, NULL, &error);
+			gettimeofday(&after_time,NULL);
+
 
 			if (!rval) {
 				debug_msg(3, "Error : %s\n", error.message);
@@ -330,6 +450,10 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 				mongoc_collection_destroy(collection);
 				return -1;
 			}
+
+			log_stats(&before_time,&after_time,&stats.inserts);
+
+
 			bson_destroy(&newrecord);
 
 		} else if (op < inserts + updates) {
@@ -351,6 +475,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 			collection = mongoc_client_get_collection(conn, DATA_DB,
 					DATA_COLLECTION);
 
+			gettimeofday(&before_time,NULL);
 			if (!mongoc_collection_update(collection, MONGOC_UPDATE_NONE, &cond,
 					&updaterecord, NULL, &error)) {
 				printf("%s\n", error.message);
@@ -359,7 +484,8 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 				mongoc_collection_destroy(collection);
 				return -1;
 			}
-
+			gettimeofday(&after_time,NULL);
+			log_stats(&before_time,&after_time,&stats.updates);
 			bson_destroy(&cond);
 			bson_destroy(&updaterecord);
 		} else {
@@ -380,11 +506,15 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 					bson_append_int64(&child,"seq",3,key);
 					bson_append_document_end(&cond,&child);
 
+					gettimeofday(&before_time,NULL);
+
 			cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE, 0, 0,
 					0, &cond, NULL, NULL);
 
 			if (mongoc_cursor_next(cursor, &result)) {
 				//Got one - not doing anything with it though
+				gettimeofday(&after_time,NULL);
+				log_stats(&before_time,&after_time,&stats.queries);
 			}
 
 			bson_destroy(&cond);

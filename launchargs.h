@@ -27,5 +27,19 @@ typedef struct mongo_loadsrv_testparams {
 	int state; /* 0 - Stop , 1 - Pause, 2 - Run */
 } MTestparams;
 
+typedef struct op_stats {
+	int total_ops;
+	int total_time;
+	int time_profile[100];
+	int long_ops;
+	int longest_time;
+} MOpStats;
+
+typedef struct test_stats {
+	MOpStats updates;
+	MOpStats inserts;
+	MOpStats queries;
+} MTestStats;
+
 
 #endif /* LAUNCHARGS_H_ */
