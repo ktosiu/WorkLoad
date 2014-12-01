@@ -20,7 +20,10 @@
 #define SEQUENCE_COLL "data"
 #define SEQUENCE_BATCH 10000
 #define DEFAULT_URI "mongodb://localhost:27017"
-#define THREADS 32
+
+
+int total_threads = 16;
+
 
 static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv);
 static int fetch_test_params(MLaunchargs *launchargs, MTestparams *testparams);
@@ -99,7 +102,7 @@ int main(int argc, char **argv) {
 	int status;
 
 
-	for (x = 0; x < THREADS; x++) {
+	for (x = 0; x < total_threads; x++) {
 		if (fork() == 0) {
 			run_load(&launchargs, &testparams);
 			exit(0);
@@ -228,8 +231,11 @@ static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv) {
 	launchargs->uri = localhost;
 	launchargs->testid = testid;
 
-	while ((c = getopt(argc, argv, "t:h:")) != -1)
+	while ((c = getopt(argc, argv, "p:t:h:")) != -1)
 		switch (c) {
+		case 'p':
+			total_threads = atoi(optarg);
+			break;
 		case 't':
 			launchargs->testid = optarg;
 			break;
