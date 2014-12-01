@@ -410,6 +410,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 			nrecs = mongoc_collection_count(collection,MONGOC_QUERY_NONE,&query,0,0,NULL,NULL);
 
 			save_stats(launchargs,&thread_oid,&stats,time(NULL)-start_time,nrecs);
+			mongoc_collection_destroy(collection);
 			bson_destroy(&query);
 			lastcheck = nowtime;
 		}
@@ -453,7 +454,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 
 			log_stats(&before_time,&after_time,&stats.inserts);
 
-
+			mongoc_collection_destroy(collection);
 			bson_destroy(&newrecord);
 
 		} else if (op < inserts + updates) {
@@ -486,6 +487,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 			}
 			gettimeofday(&after_time,NULL);
 			log_stats(&before_time,&after_time,&stats.updates);
+			mongoc_collection_destroy(collection);
 			bson_destroy(&cond);
 			bson_destroy(&updaterecord);
 		} else {
@@ -516,6 +518,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 				gettimeofday(&after_time,NULL);
 				log_stats(&before_time,&after_time,&stats.queries);
 			}
+			mongoc_collection_destroy(collection);
 
 			bson_destroy(&cond);
 			mongoc_cursor_destroy(cursor);
