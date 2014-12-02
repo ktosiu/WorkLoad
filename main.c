@@ -240,10 +240,10 @@ static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv) {
 	while ((c = getopt(argc, argv, "d:p:t:h:")) != -1)
 		switch (c) {
 		case 'd':
-			total_threads = atoi(optarg);
+			test_duration = atoi(optarg);
 			break;
 		case 'p':
-			test_duration = atoi(optarg);
+			total_threads = atoi(optarg);
 			break;
 		case 't':
 			launchargs->testid = optarg;
