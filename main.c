@@ -26,7 +26,7 @@
 
 
 int total_threads = 16;
-int test_duration = 7200;
+int test_duration = 3600;
 
 void append_op_stats(bson_t *doc, char *opname, MOpStats *opstats);
 static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv);
