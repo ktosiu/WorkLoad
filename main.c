@@ -148,7 +148,7 @@ static int add_default_test(mongoc_client_t *conn) {
 	bson_error_t error;
 
 	defaulttest =
-			BCON_NEW ( "_id", "loadtest", "numfields",BCON_INT32 (20), "fieldsize",
+			BCON_NEW ( "_id", "loadtest", "numfields",BCON_INT32 (30), "fieldsize",
 					BCON_INT32 (50), "inserts", BCON_INT32(100), "updates", BCON_INT32(200), "queries", BCON_INT32(300),
 					"status", BCON_INT32(1),"pnum",BCON_INT32(20) );
 
@@ -391,12 +391,20 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 
 	bson_t *index1;
 	bson_t *index2;
+	bson_t *index3;
+	bson_t *index4;
 	index1 = BCON_NEW (  "f1", BCON_INT32(1));
 	index2 = BCON_NEW (  "f3", BCON_INT32(1));
+	index3 = BCON_NEW (  "f5", BCON_INT32(1),"f1",BCON_INT32(1));
+	index4 = BCON_NEW (  "f7", BCON_INT32(1),"f1",BCON_INT32(1));
 	mongoc_collection_create_index(collection,index1,NULL,NULL);
 	mongoc_collection_create_index(collection,index2,NULL,NULL);
+	mongoc_collection_create_index(collection,index3,NULL,NULL);
+	mongoc_collection_create_index(collection,index4,NULL,NULL);
 	bson_destroy(index1);
 	bson_destroy(index2);
+	bson_destroy(index3);
+	bson_destroy(index4);
 
 //Every so often get new test info
 	long checktime = 1; //Check every 10 seconds
@@ -569,7 +577,7 @@ long get_primary_key(mongoc_client_t *conn,
 		seqno++;
 		key = seqno;
 	} else {
-		key = lrand48()%seqno;
+		key = lrand48() % seqno;
 	}
 
 	long rkey=0;
@@ -592,8 +600,13 @@ int generate_text_value(char *buffer, int maxlen, int minlen, int cardinality) {
 			{ 1, 3, 4, 5, 4, 2, 3, 4, 3, 5, 4, 1, 5, 4, 3, 4, 5, 2, 4, 4 };
 
 	/* Generate a random test string of the appropriate length for a given set size */
-	value = lrand48();
-	value = value % cardinality;
+	value = 0;
+	int rounds = 20;
+	int cr = cardinality / rounds;
+	for(int r=0;r<rounds;r++)
+	{
+		value = value + (lrand48() %cr);
+	}
 
 	if (maxlen > minlen) {
 		length = (value % (maxlen - minlen)) + minlen;
@@ -622,13 +635,21 @@ int generate_text_value(char *buffer, int maxlen, int minlen, int cardinality) {
 
 int generate_int_value(int min, int max) {
 	long value;
+    //Normalised distribution
+    //rounding errors for small ranges
 
-	if (max > min) {
-		value = lrand48();
-		value = (value % (max - min)) + min;
-	} else {
-		value = min;
+	int l = max - min;
+	int rounds = 20;
+
+	if(min >= max) return min;
+
+	l = l / rounds;
+	for(int r=0;r<rounds;r++)
+	{
+		value = value + ( lrand48() % l);
 	}
+
+	value = value + min;
 	return value;
 }
 
