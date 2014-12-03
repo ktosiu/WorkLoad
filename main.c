@@ -25,8 +25,9 @@
 #define DEFAULT_URI "mongodb://localhost:27017"
 
 
-int total_threads = 16;
-int test_duration = 7200;
+int total_threads = 2;
+int test_duration = 300;
+int report_time=60;
 
 void append_op_stats(bson_t *doc, char *opname, MOpStats *opstats);
 static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv);
@@ -441,6 +442,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 			nrecs = mongoc_collection_count(collection,MONGOC_QUERY_NONE,&query,0,0,NULL,NULL);
 
 			save_stats(launchargs,&thread_oid,&stats,time(NULL)-start_time,nrecs);
+			memset(&stats,0,sizeof(MTestStats));
 			mongoc_collection_destroy(collection);
 			bson_destroy(&query);
 			lastcheck = nowtime;
@@ -459,7 +461,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 			continue;
 		}
 
-		checktime = 60;
+		checktime = report_time;
 
 		int op = lrand48() % totalops;
 
