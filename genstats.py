@@ -9,6 +9,7 @@ import pymongo
 connection_string = "mongodb://54.73.63.7:27017"
 connection = pymongo.MongoClient(connection_string)
 database = connection.testresults
+collection  = database.results
 
 tops = {}
 ttime = {}
@@ -30,7 +31,7 @@ def output():
     if seconds <1:
         return
     print(str(seconds) + ","),
-    print(str(nrecs) + ","),
+    print(str(nrecs)),
     for op in optypes:
         print ("," + str(tops[op]) + ", " + str(ttime[op]) + ", " + str(ttime[op]/tops[op])),
         print ("," + str(longesttime[op]) + ", " + str(longops[op]) ),
@@ -50,8 +51,8 @@ def output():
             
     print
         
-database.results.ensure_index([("_id.seconds",1)])
-results = database.results.find().sort([("_id.seconds",1)])
+collection.ensure_index([("_id.seconds",1)])
+results = collection.find().sort([("_id.seconds",1)])
 
 slicesize = 10;
 

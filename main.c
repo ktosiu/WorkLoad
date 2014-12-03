@@ -413,7 +413,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 
 //Every so often get new test info
 	long checktime = 1; //Check every 10 seconds
-
+	int timeslice = 0;
 	while (time(NULL) - start_time < test_duration) {
 		int inserts = testparams->inserts;
 		int updates = testparams->updates;
@@ -441,7 +441,8 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 
 			nrecs = mongoc_collection_count(collection,MONGOC_QUERY_NONE,&query,0,0,NULL,NULL);
 
-			save_stats(launchargs,&thread_oid,&stats,time(NULL)-start_time,nrecs);
+			save_stats(launchargs,&thread_oid,&stats,timeslice,nrecs);
+			timeslice=timeslice+checktime; //Keep them in sync
 			memset(&stats,0,sizeof(MTestStats));
 			mongoc_collection_destroy(collection);
 			bson_destroy(&query);
