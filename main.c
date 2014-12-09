@@ -177,6 +177,9 @@ static int fetch_test_params(MLaunchargs *launchargs, MTestparams *testparams) {
 	mongoc_cursor_t *cursor;
 	mongoc_collection_t *collection;
 
+	size_t len;
+			char *str;
+
 	if (connect_to_mongo(launchargs->uri, &conn) != 0) {
 		fprintf(stderr,
 				"Unable to connect to test configuration server %s\n",
@@ -188,20 +191,17 @@ static int fetch_test_params(MLaunchargs *launchargs, MTestparams *testparams) {
 	const bson_t *testdetail;
 	//I AM HERE
 	query = BCON_NEW ( "_id", BCON_UTF8((const char*)launchargs->testid) );
-	printf("QUERYING FOR TEST\n");
+
 	collection = mongoc_client_get_collection(conn, CFG_DB, CFG_COLLECTION);
+
 
 	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE, 0, 0, 0,
 			query, NULL, NULL);
-printf("DONE");
+
+
+;
 	if (mongoc_cursor_next(cursor, &testdetail)) {
 
-		size_t len;
-		char *str;
-
-		str = bson_as_json (testdetail, &len);
-		printf ("%s\n", str);
-		bson_free (str);
 
 
 
