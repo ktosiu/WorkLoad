@@ -196,6 +196,14 @@ static int fetch_test_params(MLaunchargs *launchargs, MTestparams *testparams) {
 
 	if (mongoc_cursor_next(cursor, &testdetail)) {
 
+		size_t len;
+		char *str;
+
+		str = bson_as_json (testdetail, &len);
+		printf ("%s\n", str);
+		bson_free (str);
+
+
 
 		testparams->numfields = get_bson_int(testdetail, "numfields");
 		testparams->fieldsize = get_bson_int(testdetail, "fieldsize");
@@ -212,7 +220,7 @@ static int fetch_test_params(MLaunchargs *launchargs, MTestparams *testparams) {
 		testparams->inserts = 100;
 		testparams->updates = 200;
 		testparams->queries = 300;
-		testparams->state = 2;
+		testparams->state = 1;
 		testparams->pnum = 50;
 		if (add_default_test(conn) < 0) {
 			return -1;
@@ -450,6 +458,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 		}
 
 		if (testparams->state == 2) {
+
 			debug_msg(3, "Quitting as testing terminated\n");
 			exit(0);
 		}
