@@ -188,12 +188,12 @@ static int fetch_test_params(MLaunchargs *launchargs, MTestparams *testparams) {
 	const bson_t *testdetail;
 	//I AM HERE
 	query = BCON_NEW ( "_id", BCON_UTF8((const char*)launchargs->testid) );
-
+	printf("QUERYING FOR TEST\n");
 	collection = mongoc_client_get_collection(conn, CFG_DB, CFG_COLLECTION);
 
 	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE, 0, 0, 0,
 			query, NULL, NULL);
-
+printf("DONE");
 	if (mongoc_cursor_next(cursor, &testdetail)) {
 
 		size_t len;
