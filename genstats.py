@@ -6,7 +6,7 @@ import pymongo
 
 #Connect to local mongoDB
 
-connection_string = "mongodb://54.73.63.7:27017"
+connection_string = "mongodb://54.170.164.54:27017"
 connection = pymongo.MongoClient(connection_string)
 database = connection.testresults
 collection  = database.results
@@ -37,7 +37,7 @@ def output():
         print ("," + str(longesttime[op]) + ", " + str(longops[op]) ),
         #Work out 90th centile
         totalops = tops[op]
-        nintyth = totalops * 0.95
+        nintyth = totalops * 0.90
         adops = 0
         centiletime = 0
         for ct in times[op]:
