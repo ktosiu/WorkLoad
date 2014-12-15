@@ -11,7 +11,7 @@
 #include <mongoc.h>
 #include <time.h>
 #include "launchargs.h"
-
+#include <string.h>
 #define CFG_DB "testsrv"
 #define CFG_COLLECTION "tests"
 #define DATA_DB "testsrv"
@@ -266,7 +266,7 @@ static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv) {
 			launchargs->testid = optarg;
 			break;
 		case 'h':
-			hostlist = strdup(optarg);
+			hostlist = (char*)strdup(optarg);
 			hosts[nhosts-1] = strtok(hostlist,",");
 			printf("Host %d set to [%s]\n",nhosts,hosts[nhosts-1]);
 			while((hostname = strtok(NULL,",")) != NULL) {
