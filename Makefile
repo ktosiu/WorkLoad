@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-g --std=c99 -D_XOPEN_SOURCE
+CFLAGS=-g --std=c99 -D_XOPEN_SOURCE -D_GNU_SOURCE
 INCLUDE=-I. -I /usr/local/include/libbson-1.0 -I /usr/local/include/libmongoc-1.0
 
 DEPS = launchargs.h
