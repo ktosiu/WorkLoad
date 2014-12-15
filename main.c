@@ -22,12 +22,15 @@
 #define SEQUENCE_DB "testsrv"
 #define SEQUENCE_COLL "data"
 #define SEQUENCE_BATCH 10000
-#define DEFAULT_URI "mongodb://localhost:27017"
+#define DEFAULT_URI "localhost:27017"
 
 
 int total_threads = 2;
 int test_duration = 300;
 int report_time=60;
+char *hosts[100];
+int nhosts = 1;
+
 
 void append_op_stats(bson_t *doc, char *opname, MOpStats *opstats);
 static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv);
@@ -129,10 +132,12 @@ int disconnect_from_mongo(mongoc_client_t *conn) {
 }
 
 int connect_to_mongo(char *uristr, mongoc_client_t **conn) {
+	char fullbuf[1024];
 
 	mongoc_init();
 
-	*conn = mongoc_client_new(uristr);
+	sprintf(fullbuf,"mongodb://%s",uristr);
+	*conn = mongoc_client_new(fullbuf);
 
 	if (!*conn) {
 
@@ -180,7 +185,7 @@ static int fetch_test_params(MLaunchargs *launchargs, MTestparams *testparams) {
 	size_t len;
 			char *str;
 
-	if (connect_to_mongo(launchargs->uri, &conn) != 0) {
+	if (connect_to_mongo(hosts[0], &conn) != 0) {
 		fprintf(stderr,
 				"Unable to connect to test configuration server %s\n",
 				launchargs->uri);
@@ -243,6 +248,8 @@ static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv) {
 
 	opterr = 0;
 	int c;
+	char *hostlist;
+	char *hostname;
 
 	launchargs->uri = localhost;
 	launchargs->testid = testid;
@@ -259,6 +266,14 @@ static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv) {
 			launchargs->testid = optarg;
 			break;
 		case 'h':
+			hostlist = strdup(optarg);
+			hosts[nhosts-1] = strtok(hostlist,",");
+			printf("Host %d set to [%s]\n",nhosts,hosts[nhosts-1]);
+			while((hostname = strtok(NULL,",")) != NULL) {
+				nhosts++;
+				hosts[nhosts-1] = hostname;
+				printf("Host %d set to [%s]\n",nhosts,hosts[nhosts-1]);
+			}
 			launchargs->uri = optarg;
 			break;
 		case '?':
@@ -286,10 +301,10 @@ int save_stats(MLaunchargs *launchargs, bson_oid_t *thread_oid, MTestStats *stat
 	bson_t record;
 	bson_error_t error;
 
-	if (connect_to_mongo(launchargs->uri, &conn) != 0) {
+	if (connect_to_mongo(hosts[0], &conn) != 0) {
 		fprintf(stderr,
 				"Unable to connect to test configuration server %s\n",
-				launchargs->uri);
+				hosts[0]);
 		return -1;
 	}
 
@@ -384,19 +399,20 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 	static bson_oid_t thread_oid;
 	time_t start_time;
 	bson_oid_init(&thread_oid,NULL);
-
+	static int connection=0;
 
 	start_time = time(NULL);
 
 	memset(&stats,0,sizeof(MTestStats));
 
-	if (connect_to_mongo(launchargs->uri, &conn) != 0) {
+	if (connect_to_mongo(hosts[connection % nhosts], &conn) != 0) {
 		fprintf(stderr,
 				"Unable to connect to test configuration server %s \n",
-				launchargs->uri);
+				hosts[connection % nhosts]);
 		return -1;
 	}
 
+	connection++;
 	//Ensure indexes
 
 	collection = mongoc_client_get_collection(conn, DATA_DB,
