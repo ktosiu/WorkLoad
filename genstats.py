@@ -34,7 +34,10 @@ def output():
     print(str(seconds) + ","),
     print(str(nrecs)),
     for op in optypes:
-        print ("," + str(tops[op]) + ", " + str(ttime[op]) + ", " + str(ttime[op]/tops[op])),
+        if tops[op] > 0:
+            print ("," + str(tops[op]) + ", " + str(ttime[op]) + ", " + str(ttime[op]/tops[op])),
+        else:
+            print ("," + str(tops[op]) + ", " + str(ttime[op]) + ", " + "0"),
         print ("," + str(longesttime[op]) + ", " + str(longops[op]) ),
         #Work out 90th centile
         totalops = tops[op]
