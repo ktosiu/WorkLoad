@@ -54,6 +54,7 @@ void debug_msg(int level, char *fmt, ...) {
 	}
 }
 
+
 //I know this is really inefficient code but it's clean as and API to code with.
 //I could come back and improve the performance later adding bson hashes.
 
