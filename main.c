@@ -167,8 +167,10 @@ static int add_default_test(mongoc_client_t *conn) {
 			defaulttest, NULL, &error);
 
 	if (!rval) {
-		//Race is another thread adds it
-		debug_msg(3, "Error : %s\n", error.message);
+		//Race condition if another thread adds it
+		bson_destroy(defaulttest);
+		mongoc_collection_destroy(collection);
+		//debug_msg(3, "Error : %s\n", error.message);
 		return 0;
 	}
 
