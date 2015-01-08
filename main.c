@@ -31,10 +31,10 @@ int report_time=60;
 char *hosts[100];
 int nhosts = 1;
 
-
+int connect_to_mongo(char *uristr, mongoc_client_t **conn);
 void append_op_stats(bson_t *doc, char *opname, MOpStats *opstats);
 static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv);
-static int fetch_test_params(MLaunchargs *launchargs, MTestparams *testparams);
+static int fetch_test_params(mongoc_client_t *conn,MLaunchargs *launchargs, MTestparams *testparams);
 int generate_new_record(mongoc_client_t *conn, MTestparams *testparams,
 		bson_t *newrecord);
 int run_load(MLaunchargs *launchargs, MTestparams *testparams);
@@ -97,15 +97,25 @@ int get_bson_int(const bson_t *obj, char *name) {
 int main(int argc, char **argv) {
 	MLaunchargs launchargs;
 	MTestparams testparams;
-
+	mongoc_client_t *conn;
 	srand48(1); //Predictable behaviour
+
+
+
 
 	if (parse_command_line(&launchargs, argc, argv) != 0) {
 		fprintf(stderr, "Exiting with Error");
 		exit(1);
 	}
 
-	if (fetch_test_params(&launchargs, &testparams) != 0) {
+	if (connect_to_mongo(hosts[0], &conn) != 0) {
+		fprintf(stderr,
+				"Unable to connect to test configuration server %s \n",
+				hosts[0]);
+		return -1;
+	}
+
+	if (fetch_test_params(conn,&launchargs, &testparams) != 0) {
 		fprintf(stderr, "Exiting with Error");
 		exit(1);
 	}
@@ -138,7 +148,7 @@ int connect_to_mongo(char *uristr, mongoc_client_t **conn) {
 
 	ncons++;
 	mongoc_init();
-	debug_msg(1,"Connecting to MongoDB %d\n",ncons);
+	debug_msg(1,"Connecting to MongoDB\n");
 	sprintf(fullbuf,"mongodb://%s",uristr);
 	*conn = mongoc_client_new(fullbuf);
 
@@ -182,20 +192,15 @@ static int add_default_test(mongoc_client_t *conn) {
 	return 0;
 }
 
-static int fetch_test_params(MLaunchargs *launchargs, MTestparams *testparams) {
-	mongoc_client_t *conn;
+static int fetch_test_params(	mongoc_client_t *conn, MLaunchargs *launchargs, MTestparams *testparams) {
+
 	mongoc_cursor_t *cursor;
 	mongoc_collection_t *collection;
 
 	size_t len;
 			char *str;
 
-	if (connect_to_mongo(hosts[0], &conn) != 0) {
-		fprintf(stderr,
-				"Unable to connect to test configuration server %s\n",
-				launchargs->uri);
-		return -1;
-	}
+
 
 	bson_t *query;
 	const bson_t *testdetail;
@@ -240,10 +245,7 @@ static int fetch_test_params(MLaunchargs *launchargs, MTestparams *testparams) {
     mongoc_cursor_destroy(cursor);
 	bson_destroy(query);
 
-	if (disconnect_from_mongo(conn) != 0) {
-		fprintf(stderr, "Error disconnecting from Mongo\n");
-		return -1;
-	}
+
 	return 0;
 }
 
@@ -449,7 +451,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 		nowtime = time(NULL);
 		if (nowtime - lastcheck > checktime) {
 
-			if (fetch_test_params(launchargs, testparams) != 0) {
+			if (fetch_test_params(conn,launchargs, testparams) != 0) {
 				fprintf(stderr, "Exiting with Error");
 				exit(1);
 			}
