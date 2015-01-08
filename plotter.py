@@ -36,16 +36,20 @@ savefig(fname+'.latency.png',dpi=300)
 
 close()
 
-
-vmax = max( [  max(darray[2]), max(darray[8]), max(darray[14]) ] )
+bysec = lambda x: x/60
+insbysec = map(bysec,darray[2]);
+uptbysec = map(bysec,darray[8]);
+qrybysec = map(bysec,darray[14]);
+vmax = max( [  max(insbysec),max(uptbysec),max(qrybysec) ] )
+print vmax
 gca().get_xaxis().get_major_formatter().set_scientific(False)
 gca().get_yaxis().get_major_formatter().set_scientific(False)
-plot(darray[0],darray[2],label="Insert")
-plot(darray[0],darray[8],label="Update")
-plot(darray[0],darray[14],label="Query")
-ylabel('Ops per Minute')
+plot(darray[0],insbysec,label="Insert")
+plot(darray[0],uptbysec,label="Update")
+plot(darray[0],qrybysec,label="Query")
+ylabel('Ops per second')
 legend()
-title("Operations per Minute")
+title("Operations per Second")
 xlabel('Seconds elapsed')
 axis([0,max(darray[0]),0,vmax])
 savefig(fname+'.ops.png',dpi=300)
@@ -80,5 +84,5 @@ legend()
 axis([0,max(darray[0]),0,vmax])
 xlabel('Seconds elapsed')
 savefig(fname+'.max.png',dpi=300)
-show()
+close();
 
