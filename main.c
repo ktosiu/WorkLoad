@@ -295,21 +295,16 @@ static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv) {
 }
 
 
-int save_stats(MLaunchargs *launchargs, bson_oid_t *thread_oid, MTestStats *stats, int seconds,int nrecs)
+int save_stats(mongoc_client_t *conn,MLaunchargs *launchargs, bson_oid_t *thread_oid, MTestStats *stats, int seconds,int nrecs)
 {
 	//Save the stats to the server
-	mongoc_client_t *conn;
+
 	mongoc_cursor_t *cursor;
 	mongoc_collection_t *collection;
 	bson_t record;
 	bson_error_t error;
 
-	if (connect_to_mongo(hosts[0], &conn) != 0) {
-		fprintf(stderr,
-				"Unable to connect to test configuration server %s\n",
-				hosts[0]);
-		return -1;
-	}
+
 
 	bson_init(&record);
 	bson_t child;
@@ -330,14 +325,13 @@ int save_stats(MLaunchargs *launchargs, bson_oid_t *thread_oid, MTestStats *stat
 	if(! mongoc_collection_insert(collection,MONGOC_INSERT_NONE,&record,NULL,&error))
 	{
 		printf("%s\n", error.message);
-		disconnect_from_mongo(conn);
 		mongoc_collection_destroy(collection);
 		bson_destroy(&record);
 		return -1;
 	}
 	mongoc_collection_destroy(collection);
 	bson_destroy(&record);
-	disconnect_from_mongo(conn);
+
 	return 0;
 }
 
@@ -468,7 +462,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 
 			nrecs = mongoc_collection_count(collection,MONGOC_QUERY_NONE,&query,0,0,NULL,NULL);
 
-			save_stats(launchargs,&thread_oid,&stats,timeslice,nrecs);
+			save_stats(conn,launchargs,&thread_oid,&stats,timeslice,nrecs);
 			timeslice=timeslice+checktime; //Keep them in sync
 			memset(&stats,0,sizeof(MTestStats));
 			mongoc_collection_destroy(collection);
