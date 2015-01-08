@@ -134,9 +134,11 @@ int disconnect_from_mongo(mongoc_client_t *conn) {
 
 int connect_to_mongo(char *uristr, mongoc_client_t **conn) {
 	char fullbuf[1024];
+	static int ncons = 0;
 
+	ncons++;
 	mongoc_init();
-
+	debug_msg(1,"Connecting to MongoDB %d\n",ncons);
 	sprintf(fullbuf,"mongodb://%s",uristr);
 	*conn = mongoc_client_new(fullbuf);
 
