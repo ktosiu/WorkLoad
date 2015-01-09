@@ -148,7 +148,7 @@ int connect_to_mongo(char *uristr, mongoc_client_t **conn) {
 
 	ncons++;
 	mongoc_init();
-	debug_msg(1,"Connecting to MongoDB\n");
+	debug_msg(1,"Connecting to MongoDB %s\n",uristr);
 	sprintf(fullbuf,"mongodb://%s",uristr);
 	*conn = mongoc_client_new(fullbuf);
 
