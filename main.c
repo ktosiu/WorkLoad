@@ -37,7 +37,7 @@ static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv);
 static int fetch_test_params(mongoc_client_t *conn,MLaunchargs *launchargs, MTestparams *testparams);
 int generate_new_record(mongoc_client_t *conn, MTestparams *testparams,
 		bson_t *newrecord);
-int run_load(MLaunchargs *launchargs, MTestparams *testparams);
+int run_load(MLaunchargs *launchargs, MTestparams *testparams,int subprocid);
 int generate_data_fields(int numfields, int fieldlen, int pnum, bson_t *record);
 long get_primary_key(mongoc_client_t *conn,
 		MTestparams *testparams, bson_oid_t **goid, int existing);
@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
 
 	for (x = 0; x < total_threads; x++) {
 		if (fork() == 0) {
-			run_load(&launchargs, &testparams);
+			run_load(&launchargs, &testparams,x);
 			exit(0);
 		}
 	}
@@ -389,7 +389,7 @@ void log_stats(struct timeval *before_time, struct timeval *after_time,MOpStats 
 //And every so often check for further instructions
 //or test updates
 
-int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
+int run_load(MLaunchargs *launchargs, MTestparams *testparams, int subprocid) {
 	mongoc_client_t *conn;
 	mongoc_collection_t *collection;
 	time_t lastcheck = 0;
@@ -400,20 +400,20 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams) {
 	static bson_oid_t thread_oid;
 	time_t start_time;
 	bson_oid_init(&thread_oid,NULL);
-	static int connection=0;
+
 
 	start_time = time(NULL);
 
 	memset(&stats,0,sizeof(MTestStats));
-
-	if (connect_to_mongo(hosts[connection % nhosts], &conn) != 0) {
+    printf("Connection %d hosts %d\n",subprocid,nhosts);
+	if (connect_to_mongo(hosts[subprocid % nhosts], &conn) != 0) {
 		fprintf(stderr,
 				"Unable to connect to test configuration server %s \n",
-				hosts[connection % nhosts]);
+				hosts[subprocid % nhosts]);
 		return -1;
 	}
 
-	connection++;
+
 	//Ensure indexes
 
 	collection = mongoc_client_get_collection(conn, DATA_DB,
