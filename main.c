@@ -405,7 +405,7 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams, int subprocid) {
 	start_time = time(NULL);
 
 	memset(&stats,0,sizeof(MTestStats));
-    printf("Connection %d hosts %d\n",subprocid,nhosts);
+
 	if (connect_to_mongo(hosts[subprocid % nhosts], &conn) != 0) {
 		fprintf(stderr,
 				"Unable to connect to test configuration server %s \n",
@@ -495,12 +495,14 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams, int subprocid) {
 		//debug_msg(3,"op = %d, i = %d, u = %d, q = %d\n",op,inserts,updates,queries);
 		if (op < inserts) {
 			bson_t newrecord;
+
 			generate_new_record(conn, testparams, &newrecord);
 
 			collection = mongoc_client_get_collection(conn, DATA_DB,
 					DATA_COLLECTION);
 
 			gettimeofday(&before_time,NULL);
+
 			int rval = mongoc_collection_insert(collection, MONGOC_INSERT_NONE, &newrecord, NULL, &error);
 			gettimeofday(&after_time,NULL);
 
@@ -600,16 +602,20 @@ long get_primary_key(mongoc_client_t *conn,
 	if(seqno == -1)
 	{
 		bson_oid_init(&fixed_oid,NULL);
-		seqno = 1;
+		seqno = 0;
 	}
 
 	*oid = &fixed_oid;
 
 	if(existing == 0)
 	{
-		seqno++;
+
 		key = seqno;
+		seqno++;
 	} else {
+		//if seqno = 0 then we have no records - return a future;
+		if(seqno == 0) key=1;
+		else
 		key = lrand48() % seqno;
 	}
 
@@ -715,7 +721,7 @@ int generate_new_record(mongoc_client_t *conn, MTestparams *testparams,
 
 	bson_append_document_begin(newrecord, "_id",3,&child);
 	bson_append_oid(&child,"o",1,goid);
-	bson_append_utf8(&child,"t",1,"This is a string, not a small string either, it's in here to make the index larger",-1);
+	//bson_append_utf8(&child,"t",1,"This is a string, not a small string either, it's in here to make the index larger",-1);
 	bson_append_int64(&child,"seq",3,key);
 	bson_append_document_end(newrecord,&child);
 
