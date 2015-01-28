@@ -4,7 +4,7 @@ INCLUDE=-I. -I /usr/local/include/libbson-1.0 -I /usr/local/include/libmongoc-1.
 
 DEPS = launchargs.h
 OBJ = main.o 
-LIBS = -lmongoc-1.0 -lbson-1.0
+LIBS = -lmongoc-1.0 -lbson-1.0 -lm
 
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(INCLUDE) $(CFLAGS)

@@ -12,6 +12,7 @@
 #include <time.h>
 #include "launchargs.h"
 #include <string.h>
+#include <math.h>
 #define CFG_DB "testsrv"
 #define CFG_COLLECTION "tests"
 #define DATA_DB "testsrv"
@@ -28,6 +29,7 @@
 int total_threads = 2;
 int test_duration = 300;
 int report_time=60;
+int op_rate = 0;
 char *hosts[100];
 int nhosts = 1;
 
@@ -98,10 +100,6 @@ int main(int argc, char **argv) {
 	MLaunchargs launchargs;
 	MTestparams testparams;
 	mongoc_client_t *conn;
-	srand48(1); //Predictable behaviour
-
-
-
 
 	if (parse_command_line(&launchargs, argc, argv) != 0) {
 		fprintf(stderr, "Exiting with Error");
@@ -124,7 +122,8 @@ int main(int argc, char **argv) {
 
 
 	for (x = 0; x < total_threads; x++) {
-		if (fork() == 0) {
+	        srand48(x); // Predictable behaviour, but different for each process
+		if (total_threads == 1 || fork() == 0) {
 			run_load(&launchargs, &testparams,x);
 			exit(0);
 		}
@@ -228,7 +227,7 @@ static int fetch_test_params(	mongoc_client_t *conn, MLaunchargs *launchargs, MT
 		testparams->state = get_bson_int(testdetail, "status");
 		testparams->pnum = get_bson_int(testdetail, "pnum");
 	} else {
-		debug_msg(3, "Not found test definition - using default\n");
+		debug_msg(3, "Test definition not found - using default\n");
 
 		testparams->numfields = 20;
 		testparams->fieldsize = 50;
@@ -242,7 +241,7 @@ static int fetch_test_params(	mongoc_client_t *conn, MLaunchargs *launchargs, MT
 		}
 	}
 	mongoc_collection_destroy(collection);
-    mongoc_cursor_destroy(cursor);
+	mongoc_cursor_destroy(cursor);
 	bson_destroy(query);
 
 
@@ -261,13 +260,16 @@ static int parse_command_line(MLaunchargs *launchargs, int argc, char **argv) {
 	launchargs->uri = localhost;
 	launchargs->testid = testid;
 
-	while ((c = getopt(argc, argv, "d:p:t:h:")) != -1)
+	while ((c = getopt(argc, argv, "d:p:r:t:h:")) != -1)
 		switch (c) {
 		case 'd':
 			test_duration = atoi(optarg);
 			break;
 		case 'p':
 			total_threads = atoi(optarg);
+			break;
+		case 'r':
+			op_rate = atoi(optarg);
 			break;
 		case 't':
 			launchargs->testid = optarg;
@@ -399,10 +401,14 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams, int subprocid) {
 	struct timeval  after_time;
 	static bson_oid_t thread_oid;
 	time_t start_time;
+	double next_request_time; // Used for generating fixed load per thread
+	double lag_warn_time = 1.0; // warn when falling behind more than this number of seconds
+	uint64_t request_count = 0;
 	bson_oid_init(&thread_oid,NULL);
 
 
 	start_time = time(NULL);
+	next_request_time = start_time;
 
 	memset(&stats,0,sizeof(MTestStats));
 
@@ -448,6 +454,8 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams, int subprocid) {
 
 		time_t nowtime;
 
+		request_count++;
+
 		nowtime = time(NULL);
 		if (nowtime - lastcheck > checktime) {
 
@@ -459,12 +467,15 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams, int subprocid) {
 
 			//Save out current stats to the server
 			long nrecs;
-			collection = mongoc_client_get_collection(conn, DATA_DB,
-								DATA_COLLECTION);
+			collection = mongoc_client_get_collection(conn,
+								  DATA_DB,
+								  DATA_COLLECTION);
 			bson_t query;
 			bson_init(&query);
 
-			nrecs = mongoc_collection_count(collection,MONGOC_QUERY_NONE,&query,0,0,NULL,NULL);
+			nrecs = mongoc_collection_count(collection,
+							MONGOC_QUERY_NONE,
+							&query,0,0,NULL,NULL);
 
 			save_stats(conn,launchargs,&thread_oid,&stats,timeslice,nrecs);
 			timeslice=timeslice+checktime; //Keep them in sync
@@ -491,6 +502,38 @@ int run_load(MLaunchargs *launchargs, MTestparams *testparams, int subprocid) {
 		checktime = report_time;
 
 		int op = lrand48() % totalops;
+
+		// If a rate is given, generate req at that rate using an exponential distribution
+		if (op_rate) {
+			// simple random number on (0, 1]. The addition defends against 0
+			double urand = drand48() + 1.0E-16;
+			double wait_time = -log(urand) / op_rate; // exponential variate
+			wait_time *= total_threads; // Per thread wait time is inv. proportional
+			next_request_time += wait_time;  // compute absolute time of next req
+			if (op_rate <= 25) {
+				// Allow debugging poisson distribution with very low op rates
+				debug_msg(1, "Info[%d, %llu]: at %1.3f seconds (+%1.3f), "
+					  "rand %08lx, totalops %i, "
+					  "rate %1.1f ops/sec\n",
+					  subprocid, request_count, next_request_time - start_time,
+					  wait_time, rand, totalops,
+					  request_count / (next_request_time - start_time));
+			}
+
+			if (nowtime < next_request_time) {
+				// While nowtime is whole seconds, error will average out
+				double wait_micros = (next_request_time - nowtime) * 1.0E6;
+				usleep((useconds_t) wait_micros);
+			}
+			else if (nowtime > next_request_time + lag_warn_time) {
+				debug_msg(1,
+					  "Warning[%d, %llu]: %1.1f seconds behind for "
+					  "request rate of %i ops/sec\n",
+					  subprocid, request_count,
+					  nowtime - next_request_time, op_rate);
+				lag_warn_time *= 1.1; // exponential backoff for warnings
+			}
+		}
 
 		//debug_msg(3,"op = %d, i = %d, u = %d, q = %d\n",op,inserts,updates,queries);
 		if (op < inserts) {
